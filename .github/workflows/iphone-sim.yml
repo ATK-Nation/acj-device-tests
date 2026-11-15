@@ -1,0 +1,53 @@
+# Opens aicodejobs.com in real iPhone and iPad Safari, in Apple's simulator, on
+# GitHub's Mac. Signed-out public pages only. This file is a copy: its home is
+# scripts/device-tests/workflows/ in the main repo (docs/team-memory/iphone-sim-test.md).
+# Start it from the main repo: node scripts/device-tests/publish.mjs --run iphone
+#   (optional) -f devices=small,iphone,promax,ipadmini,ipadpro|all
+#              -f paths=/,/jobs|all   -f base=https://aicodejobs.com
+#
+# It runs in the PUBLIC repo ATK-Nation/acj-device-tests, where GitHub bills no
+# minutes for a Mac. Start by hand only: no push, pull_request or schedule
+# trigger, so nobody else can start it (test:actions-budget holds that).
+
+name: iPhone sizes
+
+on:
+  workflow_dispatch:
+    inputs:
+      devices:
+        description: "small, iphone, promax, ipadmini, ipadpro, or all"
+        required: false
+        default: ""
+      paths:
+        description: "Pages, comma separated, or all"
+        required: false
+        default: ""
+      base:
+        description: "Site to open (default https://aicodejobs.com)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  iphone:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/iphone-sim/run.mjs --devices "$DEVICES" --paths "$PATHS" --base "$BASE"
+        env:
+          DEVICES: ${{ inputs.devices }}
+          PATHS: ${{ inputs.paths }}
+          BASE: ${{ inputs.base }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: iphone-sim-output
+          path: iphone-sim-output/
+          retention-days: 7
+          if-no-files-found: ignore

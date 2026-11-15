@@ -1,0 +1,34 @@
+# Presses our keyboard shortcuts on a real Mac, in real Safari. This file is a
+# copy: its home is scripts/device-tests/workflows/ in the main repo
+# (docs/team-memory/mac-key-test.md). Start it from the main repo:
+#   node scripts/device-tests/publish.mjs --run mac
+#
+# It runs in the PUBLIC repo ATK-Nation/acj-device-tests, where GitHub bills no
+# minutes for a Mac. Start by hand only: no push, pull_request or schedule
+# trigger, so nobody else can start it (test:actions-budget holds that).
+
+name: Mac keys
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  keys:
+    runs-on: macos-15
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: node scripts/mac-keys/run.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-keys-output
+          path: mac-keys-output/
+          retention-days: 7
+          if-no-files-found: ignore
