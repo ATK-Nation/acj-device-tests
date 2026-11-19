@@ -178,6 +178,29 @@ await osa(`tell application "System Events" to tell process "Messages"
 end tell`);
 await sleep(1500);
 await shot("messages-2c-after-window-menu");
+// The sign-in box: press Cancel, which only declines it (nothing is signed in).
+for (const where of ["sheet 1 of window 1", "window 1"]) {
+  await osa(`tell application "System Events" to tell process "Messages"
+  try
+    click button "Cancel" of ${where}
+  end try
+end tell`);
+}
+await sleep(3000);
+note(`after Cancel: windows ${await windows()}`);
+await shot("messages-2d-after-cancel");
+const list = await axDump("ax-messages-after-cancel.json");
+if (!list.startsWith("FAILED")) {
+  const els = JSON.parse(list);
+  note(`rows and cells: ${els.filter((e) => /AXRow|AXCell|AXStaticText/.test(e.role ?? "")).map((e) => (e.name || e.desc || e.value || "").slice(0, 30)).filter(Boolean).slice(0, 30).join(" | ")}`);
+}
+await osa(`tell application "System Events" to tell process "Messages"
+  try
+    click menu item "Go to Next Conversation" of menu 1 of menu bar item "Window" of menu bar 1
+  end try
+end tell`);
+await sleep(2500);
+await shot("messages-2e-next-conversation");
 // The chat list is the window's first table or list; pick its first row.
 await osa(`tell application "System Events" to tell process "Messages"
   try
