@@ -2,7 +2,7 @@
 # heights, gaps), with pictures. This file is a copy: its home is
 # scripts/device-tests/workflows/ in the main repo (docs/corners.md). Start it from
 # the main repo:
-#   node scripts/device-tests/publish.mjs --run measure   (optional) -f image=macos-15
+#   node scripts/device-tests/publish.mjs --run measure   (optional) -f image=macos-15 -f part=messages
 #
 # It runs in the PUBLIC repo ATK-Nation/acj-device-tests, where GitHub bills no
 # minutes for a Mac. Start by hand only: no push, pull_request or schedule
@@ -17,6 +17,10 @@ on:
         description: "GitHub Mac to use (default macos-26, the newest look)"
         required: false
         default: "macos-26"
+      part:
+        description: "all (controls, menus, apps) or messages (Messages bubbles)"
+        required: false
+        default: "all"
 
 permissions:
   contents: read
@@ -30,7 +34,10 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
-      - run: node scripts/mac-measure/run.mjs
+      - run: |
+          if [ "$PART" = "messages" ]; then node scripts/mac-measure/messages.mjs; else node scripts/mac-measure/run.mjs; fi
+        env:
+          PART: ${{ inputs.part }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
