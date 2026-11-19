@@ -38,8 +38,8 @@ const text = async (cmd, args, ms = 30_000) => {
 const osa = (script, ms = 20_000) => text("osascript", ["-e", script], ms);
 const shot = (name) => text("screencapture", ["-x", `${OUT}/${name}.png`]);
 const sql = (q, json = false) => text("sqlite3", json ? ["-json", DB, q] : [DB, q], 60_000);
-const axDump = async (file) => {
-  const r = await text("osascript", ["-l", "JavaScript", AX, "Messages", "windows", "2500"], 150_000);
+const axDump = async (file, mode = "windows") => {
+  const r = await text("osascript", ["-l", "JavaScript", AX, "Messages", mode, "2500"], 150_000);
   if (!r.startsWith("FAILED")) writeFileSync(`${OUT}/${file}`, r);
   return r;
 };
@@ -148,6 +148,36 @@ await osa(`tell application "System Events" to tell process "Messages"
 end tell`);
 await sleep(1500);
 await shot("messages-2-with-chat");
+// Signed out, Messages may open no window by itself (seen 2026-11-19). Ask for
+// its main window (Window > Messages, Cmd+0), and list what the Window and File
+// menus offer, so the next try knows the names.
+for (const m of ["Window", "File"]) {
+  const r = await axDump(`ax-menu-${m.toLowerCase()}.json`, `menubar:${m}`);
+  if (!r.startsWith("FAILED")) note(`${m} menu: ${JSON.parse(r).filter((e) => e.role === "AXMenuItem").map((e) => e.name || "-").join(", ")}`);
+}
+const windows = async () => {
+  const r = await osa('tell application "System Events" to tell process "Messages" to get name of every window');
+  return r.startsWith("FAILED") ? r : `[${r}]`;
+};
+await osa('tell application "System Events" to tell process "Messages" to keystroke "0" using {command down}');
+await sleep(3000);
+note(`after Cmd+0: windows ${await windows()}`);
+await shot("messages-2b-after-cmd-0");
+for (const item of ["Messages", "Chats"]) {
+  await osa(`tell application "System Events" to tell process "Messages"
+  try
+    click menu item "${item}" of menu 1 of menu bar item "Window" of menu bar 1
+  end try
+end tell`);
+}
+await sleep(3000);
+note(`after Window menu: windows ${await windows()}`);
+await osa(`tell application "System Events" to tell process "Messages"
+  set position of window 1 to {40, 40}
+  set size of window 1 to {980, 700}
+end tell`);
+await sleep(1500);
+await shot("messages-2c-after-window-menu");
 // The chat list is the window's first table or list; pick its first row.
 await osa(`tell application "System Events" to tell process "Messages"
   try
