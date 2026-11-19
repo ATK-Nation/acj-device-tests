@@ -64,7 +64,10 @@ note(`first launch: ${first.startsWith("FAILED") ? first : `${JSON.parse(first).
 await osa('tell application "Messages" to quit');
 await sleep(3000);
 await text("pkill", ["-x", "Messages"]);
-await sleep(1000);
+// Messages' background helpers keep their own copy of the history; stop them so
+// the next launch reads the file again (macOS starts them again by itself).
+for (const p of ["imagent", "IMDPersistenceAgent", "IMAutomaticHistoryDeletionAgent"]) await text("pkill", ["-x", p]);
+await sleep(2000);
 
 if (!existsSync(DB)) {
   note(`could not check: Messages made no history file at ${DB}`);
@@ -137,6 +140,8 @@ writeFileSync(`${OUT}/fixture.sql`, statements.join("\n"));
 const wrote = await text("sqlite3", [DB, `.read ${OUT}/fixture.sql`], 60_000);
 const count = await sql("SELECT count(*) FROM message WHERE ROWID >= 9001");
 note(`made-up chat written: ${wrote.startsWith("FAILED") ? wrote : `yes, ${count} messages`}`);
+for (const p of ["imagent", "IMDPersistenceAgent"]) await text("pkill", ["-x", p]);
+await sleep(2000);
 
 // 4. Open Messages again, pick the chat, picture it.
 await text("open", ["-a", "Messages"]);
@@ -178,14 +183,17 @@ await osa(`tell application "System Events" to tell process "Messages"
 end tell`);
 await sleep(1500);
 await shot("messages-2c-after-window-menu");
-// The sign-in box: press Cancel, which only declines it (nothing is signed in).
-for (const where of ["sheet 1 of window 1", "window 1"]) {
-  await osa(`tell application "System Events" to tell process "Messages"
-  try
-    click button "Cancel" of ${where}
-  end try
+// The sign-in box is its own untitled window: close it (Escape, then its close
+// button). That only declines it; nothing is signed in.
+await osa('tell application "System Events" to key code 53');
+await sleep(800);
+await osa(`tell application "System Events" to tell process "Messages"
+  repeat with w in (every window whose name is "")
+    try
+      click (first button of w whose subrole is "AXCloseButton")
+    end try
+  end repeat
 end tell`);
-}
 await sleep(3000);
 note(`after Cancel: windows ${await windows()}`);
 await shot("messages-2d-after-cancel");
