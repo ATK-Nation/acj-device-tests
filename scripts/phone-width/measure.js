@@ -2,14 +2,14 @@
 // into a browser console, sent through a browser tool, or evaluated by
 // scripts/check-phone-width.mjs. Rules: docs/phone-width.md.
 //
-// Returns { width, pageWidth, sideways, wrapped, clipped, smallTaps, smallFields, stretched }.
+// Returns { width, pageWidth, sideways, wrapped, pillWraps, clipped, smallTaps, smallFields, stretched }.
 // Measure at a real phone width (about 390px). A page measured while skeletons
 // are still showing measures the skeleton, so wait for content first.
 (() => {
   // The phone width asked for. A phone browser widens its own viewport to fit
   // a page that is too wide, so innerWidth alone would hide exactly that bug.
   const W = window.__PHONE_WIDTH || window.innerWidth;
-  const out = { url: location.pathname, width: W, pageWidth: Math.max(document.documentElement.scrollWidth, window.innerWidth), sideways: [], wrapped: [], clipped: [], smallTaps: [], smallFields: [], stretched: [] };
+  const out = { url: location.pathname, width: W, pageWidth: Math.max(document.documentElement.scrollWidth, window.innerWidth), sideways: [], wrapped: [], pillWraps: [], clipped: [], smallTaps: [], smallFields: [], stretched: [] };
   const shown = (el) => {
     const s = getComputedStyle(el);
     if (s.display === "none" || s.visibility === "hidden" || +s.opacity === 0) return false;
@@ -65,6 +65,36 @@
     if (lines > 1) out.wrapped.push(`${label(el)} on ${lines} lines`);
   }
 
+  // 2b. A PILL WHOSE TEXT WRAPS (Andy, 2026-11-21, of the cancel reasons
+  // wrapping to 3 lines inside fully round bubbles: "it's absolutely ugly.
+  // Let's make sure we never have a display look like that on those type of
+  // bubbles"). A pill is a box rounded to half its height or more; its text
+  // must sit on ONE line at every width. Any length counts, unlike check 2:
+  // a long option still belongs on one line, or the layout gives it a row.
+  const textLines = (el) => {
+    const tops = [];
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n; (n = walk.nextNode()); ) {
+      // Screen-reader-only text is a 1px clipped box: it is not seen, so it
+      // is not a line (the header search bar's "Keyword search for...").
+      const host = n.parentElement;
+      if (!n.textContent.trim() || !host || !shown(host) || host.getBoundingClientRect().width <= 1 || host.closest(".sr-only")) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const r of range.getClientRects()) if (r.width > 1) tops.push(r.top);
+    }
+    return tops.sort((a, b) => a - b).filter((t, i, a) => i === 0 || t - a[i - 1] > 8).length;
+  };
+  for (const el of all) {
+    if (!shown(el) || el.closest(".sr-only") || !(el.innerText || "").trim()) continue;
+    const r = el.getBoundingClientRect();
+    if (r.height < 30) continue; // one line of text-sm with padding is under this
+    const radius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+    if (radius < r.height / 2 - 1) continue;
+    const lines = textLines(el);
+    if (lines > 1) out.pillWraps.push(`${label(el)} on ${lines} lines`);
+  }
+
   // 3. Text cut off with no "…", and placeholders cut mid-letter (rule 1).
   const ctx = document.createElement("canvas").getContext("2d");
   for (const el of all) {
@@ -118,6 +148,6 @@
     if (Math.abs(r.width / r.height - want) / want > 0.06) out.stretched.push(`${label(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
   }
 
-  for (const k of ["sideways", "wrapped", "clipped", "smallTaps", "smallFields", "stretched"]) out[k] = [...new Set(out[k])].slice(0, 25);
+  for (const k of ["sideways", "wrapped", "pillWraps", "clipped", "smallTaps", "smallFields", "stretched"]) out[k] = [...new Set(out[k])].slice(0, 25);
   return out;
 })()

@@ -5,6 +5,8 @@
 // mode: "windows" (every window), "menus" (open menus, skipping the menu bar),
 // or "menubar:<title>" (the open menu under that menu bar title).
 
+// osascript calls run() itself, so nothing in this file uses it.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function run(argv) {
   const procName = argv[0];
   const mode = argv[1] || "windows";
@@ -17,7 +19,7 @@ function run(argv) {
     let pr = {};
     try {
       pr = e.properties();
-    } catch (x) {
+    } catch {
       return;
     }
     const r = { d: d, role: pr.role, sub: pr.subrole, name: pr.name, desc: pr.description, pos: pr.position, size: pr.size };
@@ -26,7 +28,7 @@ function run(argv) {
     let kids = [];
     try {
       kids = e.uiElements();
-    } catch (x) {}
+    } catch {}
     for (const k of kids) walk(k, d + 1);
   }
   if (mode === "windows") {
@@ -36,7 +38,7 @@ function run(argv) {
       let role = "";
       try {
         role = e.role();
-      } catch (x) {}
+      } catch {}
       if (role !== "AXMenuBar") walk(e, 0);
     }
   } else if (mode.indexOf("menubar:") === 0) {

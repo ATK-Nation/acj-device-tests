@@ -183,6 +183,67 @@ end tell`);
   note(`${a.name}: ${els.length} sizes read, windows: ${titles.join(", ") || "none"}`);
 }
 
+// 5b. Apple's Calendar, for the calendar redesign (Andy, 2026-11-22: "go through
+// like Google Calendar ... or even MacBooks calendar"). Month and Week view, in
+// dark and light, a bigger window so a month grid has room. Nothing is signed in
+// to or typed; the holiday calendar a new Mac has gives it something to show.
+{
+  const opened = await text("open", ["-a", "Calendar"]);
+  if (opened.startsWith("FAILED")) note(`Calendar: did not open (${opened})`);
+  else {
+    await sleep(7000);
+    await osa('tell application "Calendar" to activate');
+    await key(RETURN); // a first-launch card, if any
+    await sleep(1200);
+    await osa(`tell application "System Events" to tell process "Calendar"
+  set position of window 1 to {20, 40}
+  set size of window 1 to {1400, 860}
+end tell`);
+    const view = async (n) => {
+      await osa(`tell application "System Events" to tell process "Calendar" to keystroke "${n}" using command down`);
+      await sleep(1800);
+    };
+    for (const dark of [true, false]) {
+      await osa(`tell application "System Events" to tell appearance preferences to set dark mode to ${dark}`);
+      await sleep(1500);
+      const mode = dark ? "dark" : "light";
+      await view(3);
+      await shot(`app-calendar-month-${mode}`);
+      if (dark) await axDump("Calendar", "windows", "ax-app-calendar-month.json", 3000);
+      await view(2);
+      await shot(`app-calendar-week-${mode}`);
+      if (dark) await axDump("Calendar", "windows", "ax-app-calendar-week.json", 3000);
+      await view(4);
+      await shot(`app-calendar-year-${mode}`);
+      await view(1);
+      await shot(`app-calendar-day-${mode}`);
+    }
+    await osa('tell application "System Events" to tell appearance preferences to set dark mode to true');
+    // How Apple makes a new event (Andy, 2026-11-22: "even like how to create a task").
+    // The calendar list (sidebar) first, then File > New Event in Week view, which opens
+    // the event's own card. It is pictured, measured, then undone, so nothing is saved.
+    await osa(`tell application "System Events" to tell process "Calendar"
+  try
+    click menu item "Show Calendar List" of menu "View" of menu bar 1
+  end try
+end tell`);
+    await sleep(1200);
+    await view(3);
+    await shot("app-calendar-month-sidebar-dark");
+    await view(2);
+    await osa(`tell application "System Events" to tell process "Calendar" to keystroke "n" using command down`);
+    await sleep(2000);
+    await shot("app-calendar-new-event-dark");
+    await axDump("Calendar", "windows", "ax-app-calendar-new-event.json", 3000);
+    await key(ESC);
+    await sleep(800);
+    await shot("app-calendar-new-event-closed-dark");
+    await osa(`tell application "System Events" to tell process "Calendar" to keystroke "z" using command down`);
+    await sleep(800);
+    note("Calendar: month, week, year and day pictured in dark and light; calendar list and a new event pictured in dark");
+  }
+}
+
 // 6. The summary: letter sizes, control heights, menu rows.
 const lines = ["# Mac measure", "", `${facts.macos.replace(/\n/g, " · ")}`, "", `Screen: ${info.screenW} x ${info.screenH} points at ${info.scale}x.`, ""];
 lines.push("## Letter sizes (points)", "", "| Text | Size |", "|---|---|");
