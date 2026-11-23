@@ -4,7 +4,8 @@
 // keyboard steps use, so events posted from it reach apps the same way.
 //
 //   osascript -l JavaScript scripts/mac-measure/mouse.js click 300 200
-//   ... dclick X Y | rclick X Y | move X Y | drag X1 Y1 X2 Y2 [alt]
+//   ... dclick X Y | rclick X Y | mclick X Y | move X Y | scroll DX DY | drag X1 Y1 X2 Y2
+//   Add alt, shift or cmd to hold that key during a click or drag.
 //
 // Coordinates are screen points, top-left origin.
 
@@ -25,7 +26,8 @@ function post(type, x, y, button, clicks, flags) {
 function run(argv) {
   const cmd = argv[0];
   const n = argv.slice(1, 5).map(Number);
-  const flags = argv.includes("alt") ? ALT : 0;
+  // Modifier keys held during a click or drag: alt (Option), shift, cmd.
+  const flags = (argv.includes("alt") ? ALT : 0) | (argv.includes("shift") ? 0x20000 : 0) | (argv.includes("cmd") ? 0x100000 : 0);
   const [x, y] = n;
   if (cmd === "move") {
     post(MOVED, x, y, 0, 0, 0);
@@ -42,6 +44,20 @@ function run(argv) {
     delay(0.05);
     post(DOWN, x, y, 0, 2, 0);
     post(UP, x, y, 0, 2, 0);
+  } else if (cmd === "mclick") {
+    // Middle button (button 2): kCGEventOtherMouseDown 25 / Up 26.
+    post(MOVED, x, y, 0, 0, 0);
+    delay(0.1);
+    post(25, x, y, 2, 1, 0);
+    post(26, x, y, 2, 1, 0);
+  } else if (cmd === "scroll") {
+    // A two-finger trackpad swipe reaches apps as pixel scroll events: dy down, dx sideways.
+    const [dx, dy] = n;
+    for (let i = 0; i < 12; i++) {
+      const e = $.CGEventCreateScrollWheelEvent(null, 0, 2, Math.round(dy / 12), Math.round(dx / 12));
+      $.CGEventPost(0, e);
+      delay(0.02);
+    }
   } else if (cmd === "rclick") {
     post(MOVED, x, y, 0, 0, 0);
     delay(0.1);

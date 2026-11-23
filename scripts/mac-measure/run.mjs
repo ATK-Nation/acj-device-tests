@@ -275,8 +275,10 @@ end tell`);
     click menu item "Hide Calendar List" of menu "View" of menu bar 1
   end try
 end tell`);
-  await osa('tell application "Calendar" to switch view to month view');
-  await osa('tell application "Calendar" to view calendar at date "Sunday, November 22, 2026 at 12:00:00 PM"');
+  // Keys, not "tell application Calendar": that asks macOS for a permission box that blocks
+  // the run (seen 2026-11-23). Month view, then today (the run date is in November 2026).
+  await keys("3", "command down");
+  await keys("t", "command down");
   await sleep(1500);
 
   // Make items with Quick Event (the + button), as a person would type them.
@@ -287,8 +289,8 @@ end tell`);
     await osa('tell application "System Events" to key code 36');
     await sleep(1800);
     await shot(`use-quick-made-${words.split(" ")[0].toLowerCase()}`);
-    await osa('tell application "System Events" to key code 53');
-    await sleep(800);
+    // Esc here CANCELS the new item (seen 2026-11-23), so close its card by clicking the title.
+    await mouse("click", 110, 119);
   }
   await step("month-with-items", async () => {}, true);
 
@@ -347,6 +349,54 @@ end tell`);
   const menus5c = {};
   for (const m of ["File", "Edit", "View", "Window"]) menus5c[m] = await menuNames(m);
   writeFileSync(`${OUT}/use-menus.json`, JSON.stringify(menus5c, null, 2));
+
+  // Every other input (Andy, 2026-11-22: "left/right click, middle mouse, drag, swipe, keys
+  // ... on the calendar or the task or the side bar, or the date").
+  await keys("3", "command down");
+  await keys("t", "command down");
+  await step("item-mclick", () => mouse("mclick", col(2), item(3)), true);
+  await key(ESC);
+  await step("item-shift-click", async () => { await mouse("click", col(2), item(3)); await mouse("click", col(3), item(3), "shift"); }, true);
+  await step("item-cmd-click", async () => { await mouse("click", col(2), item(3)); await mouse("click", col(2), item(3, 1), "cmd"); }, true);
+  await key(ESC);
+  await step("month-scroll-down", () => mouse("scroll", 0, -600));
+  await step("month-scroll-up", () => mouse("scroll", 0, 600));
+  await step("month-swipe-left", () => mouse("scroll", -600, 0));
+  await keys("t", "command down");
+  await step("day-number-hover", () => mouse("move", col(4) + 55, 177 + 88 * 3 + 15));
+  await step("today-button-hover", () => mouse("move", 949, 121));
+  await mouse("click", col(2), item(3));
+  await step("key-tab", async () => { await osa('tell application "System Events" to key code 48'); await sleep(900); });
+  await step("key-return-on-item", async () => { await osa('tell application "System Events" to key code 36'); await sleep(1200); }, true);
+  await key(ESC);
+  await step("key-cmd-i", () => keys("i", "command down"), true);
+  await key(ESC);
+  // Week view: the day headers and an item's edges.
+  await keys("2", "command down");
+  await step("week-header-click", () => mouse("click", 418, 166));
+  await step("week-header-dclick", () => mouse("dclick", 418, 166), true);
+  await keys("2", "command down");
+  await step("week-scroll-down", () => mouse("scroll", 0, -400));
+  await step("week-swipe-left", () => mouse("scroll", -600, 0));
+  await keys("t", "command down");
+  // The sidebar: calendar list and the small month.
+  await osa(`tell application "System Events" to tell process "Calendar"
+  try
+    click menu item "Show Calendar List" of menu "View" of menu bar 1
+  end try
+end tell`);
+  await keys("3", "command down");
+  await step("sidebar-shown", async () => {}, true);
+  await step("sidebar-list-rclick", () => mouse("rclick", 97, 140), true);
+  await key(ESC);
+  await step("sidebar-list-dclick", () => mouse("dclick", 97, 140), true);
+  await key(ESC);
+  await step("sidebar-checkbox-click", () => mouse("click", 54, 217));
+  await mouse("click", 54, 217);
+  await step("minimonth-click", () => mouse("click", 140, 633));
+  await step("minimonth-dclick", () => mouse("dclick", 140, 633));
+  await step("minimonth-scroll", () => mouse("scroll", 0, -300));
+  await step("minimonth-next-arrow", () => mouse("click", 224, 505));
 
   // Settings: every tab.
   await keys(",", "command down");
