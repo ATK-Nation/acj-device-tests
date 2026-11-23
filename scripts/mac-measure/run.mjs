@@ -244,6 +244,122 @@ end tell`);
   }
 }
 
+// 5c. Apple's Calendar, USED: every click, double-click, right-click, drag and key, with a
+// picture after each (Andy, 2026-11-22: "how every mouse click works, drag, swipe, right
+// click, left click"). Items are made through Apple's own Quick Event box, so that box is
+// tested too. Everything runs on the Mac's local calendar; nothing is signed in to.
+// Month grid points come from the 2026-11-22 run: the window sits at x 20, the grid starts
+// at y 177, 7 columns of about 143.4, rows of 88; a day's first item sits 38 below its top.
+{
+  const MOUSE = resolve("scripts/mac-measure/mouse.js");
+  const mouse = async (...a) => {
+    const r = await text("osascript", ["-l", "JavaScript", MOUSE, ...a.map(String)]);
+    if (r !== "ok") note(`mouse ${a.join(" ")}: ${r}`);
+    await sleep(1200);
+  };
+  const col = (c) => Math.round(20 + 143.4 * c + 71.7);
+  const item = (r, k = 0) => 177 + 88 * r + 38 + 17 * k;
+  const keys = async (k, using = "") => {
+    await osa(`tell application "System Events" to tell process "Calendar" to keystroke "${k}"${using ? ` using {${using}}` : ""}`);
+    await sleep(1200);
+  };
+  const menuNames = async (m) => osa(`tell application "System Events" to tell process "Calendar" to get name of every menu item of menu "${m}" of menu bar 1`);
+  const step = async (name, run, dump = false) => {
+    await run();
+    await shot(`use-${name}`);
+    if (dump) await axDump("Calendar", "windows", `ax-use-${name}.json`, 3000);
+  };
+  await osa('tell application "Calendar" to activate');
+  await osa(`tell application "System Events" to tell process "Calendar"
+  try
+    click menu item "Hide Calendar List" of menu "View" of menu bar 1
+  end try
+end tell`);
+  await osa('tell application "Calendar" to switch view to month view');
+  await osa('tell application "Calendar" to view calendar at date "Sunday, November 22, 2026 at 12:00:00 PM"');
+  await sleep(1500);
+
+  // Make items with Quick Event (the + button), as a person would type them.
+  for (const words of ["Design review November 24 at 3pm", "Call with Sam November 25 at 10am", "Hackathon November 24 to November 26", "Lunch November 24 at 12pm", "Gym November 24 at 6pm", "Invoice November 24 at 9am"]) {
+    await mouse("click", 224, 66);
+    await keys(words);
+    await shot(`use-quick-typed-${words.split(" ")[0].toLowerCase()}`);
+    await osa('tell application "System Events" to key code 36');
+    await sleep(1800);
+    await shot(`use-quick-made-${words.split(" ")[0].toLowerCase()}`);
+    await osa('tell application "System Events" to key code 53');
+    await sleep(800);
+  }
+  await step("month-with-items", async () => {}, true);
+
+  // Clicks on an item (Tuesday Nov 24, row 3, column 2).
+  await step("item-click", () => mouse("click", col(2), item(3)), true);
+  await step("item-hover", () => mouse("move", col(3), item(3)));
+  await sleep(2000);
+  await shot("use-item-hover-2s");
+  await step("item-dclick", () => mouse("dclick", col(2), item(3)), true);
+  await key(ESC);
+  await step("item-rclick", () => mouse("rclick", col(2), item(3)), true);
+  await key(ESC);
+  await step("day-rclick", () => mouse("rclick", col(4), item(4)), true);
+  await key(ESC);
+  await step("day-dclick", () => mouse("dclick", col(5), item(4)), true);
+  await key(ESC);
+  await keys("z", "command down");
+  await step("daynumber-click", () => mouse("click", col(5) + 55, 177 + 88 * 3 + 15), true);
+  await step("daynumber-dclick", () => mouse("dclick", col(5) + 55, 177 + 88 * 3 + 15), true);
+  await keys("3", "command down");
+
+  // Drags: move, copy (Option), and stretch a multi-day bar.
+  await step("drag-move", () => mouse("drag", col(3), item(3), col(5), item(4)), true);
+  await keys("z", "command down");
+  await step("drag-copy", () => mouse("drag", col(3), item(3), col(6), item(3), "alt"), true);
+  await keys("z", "command down");
+  await step("drag-across-days", () => mouse("drag", col(1), item(4, 1), col(3), item(4, 1)), true);
+  await key(ESC);
+  await keys("z", "command down");
+
+  // Keyboard: select an item, arrows, next month, today, delete then undo.
+  await mouse("click", col(2), item(3));
+  await step("key-arrow-right", async () => { await osa('tell application "System Events" to key code 124'); await sleep(900); });
+  await step("key-next-month", async () => { await osa('tell application "System Events" to key code 124 using command down'); await sleep(1200); });
+  await step("key-today", () => keys("t", "command down"));
+  await mouse("click", col(2), item(3));
+  await step("key-delete", async () => { await osa('tell application "System Events" to key code 51'); await sleep(1200); }, true);
+  await key(ESC);
+  await keys("z", "command down");
+
+  // Week and Day: drag to make an item, drag an edge to stretch it.
+  await keys("2", "command down");
+  await step("week-with-items", async () => {}, true);
+  await step("week-drag-create", () => mouse("drag", col(4), 360, col(4), 440), true);
+  await key(ESC);
+  await keys("z", "command down");
+  await keys("1", "command down");
+  await step("day-with-items", async () => {}, true);
+  await keys("3", "command down");
+
+  // Search, the Requests inbox, and every menu's items.
+  await step("search", async () => { await keys("f", "command down"); await keys("Design"); await sleep(1500); }, true);
+  await key(ESC);
+  await step("inbox", () => mouse("click", 177, 66), true);
+  await key(ESC);
+  const menus5c = {};
+  for (const m of ["File", "Edit", "View", "Window"]) menus5c[m] = await menuNames(m);
+  writeFileSync(`${OUT}/use-menus.json`, JSON.stringify(menus5c, null, 2));
+
+  // Settings: every tab.
+  await keys(",", "command down");
+  await sleep(1500);
+  for (const tab of ["General", "Accounts", "Alerts", "Advanced"]) {
+    await osa(`tell application "System Events" to tell process "Calendar" to click button "${tab}" of toolbar 1 of window 1`);
+    await sleep(1200);
+    await shot(`use-settings-${tab.toLowerCase()}`);
+  }
+  await keys("w", "command down");
+  note("Calendar used: quick events, clicks, double-clicks, right-clicks, drags, keys, search, inbox, menus and settings pictured (use-*.png)");
+}
+
 // 6. The summary: letter sizes, control heights, menu rows.
 const lines = ["# Mac measure", "", `${facts.macos.replace(/\n/g, " · ")}`, "", `Screen: ${info.screenW} x ${info.screenH} points at ${info.scale}x.`, ""];
 lines.push("## Letter sizes (points)", "", "| Text | Size |", "|---|---|");
